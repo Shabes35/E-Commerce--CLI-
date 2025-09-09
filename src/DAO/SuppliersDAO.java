@@ -3,10 +3,7 @@ package DAO;
 import Database.Db;
 import model.Supplier;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 
 public class SuppliersDAO {
     Db db = new Db();
@@ -21,10 +18,12 @@ public class SuppliersDAO {
             SuppliersDAO check = new SuppliersDAO();
 
             if(!check.supplierExist(supplier.getName(),supplier.getPhone())) {
-                String sql = "insert into suppliers (supplier_name,phone)values('"
-                        + supplier.getName() + "','" + supplier.getPhone() + "')";
-                Statement stmt = con.createStatement();
-                stmt.executeUpdate(sql);
+
+                String sql ="insert into suppliers (supplier_name,phone)values(?,?)";
+                PreparedStatement stmt = con.prepareStatement(sql);
+                stmt.setString(1,supplier.getName());
+                stmt.setString(2,supplier.getPhone());
+                stmt.executeUpdate();
             }
 
         }catch (SQLException e){
