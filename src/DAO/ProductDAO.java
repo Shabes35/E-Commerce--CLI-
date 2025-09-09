@@ -1,11 +1,16 @@
 package DAO;
 
 import Database.Db;
+import model.Customers;
+import model.Orders;
 import model.Products;
 import model.Supplier;
 
 import java.sql.*;
+import java.util.HashSet;
+import java.util.InputMismatchException;
 import java.util.Scanner;
+import java.util.Set;
 
 public class ProductDAO{
 
@@ -29,19 +34,13 @@ public class ProductDAO{
             stmt.setString(4,supplier.getName());
             stmt.setString(5,supplier.getPhone());
             stmt.executeUpdate();
+            stmt.close();
+            con.close();
 
-//            String sql= "insert into products (product_name,selling_price,supplier_id)values('"
-//                    +product.getName()+"'," + product.getPrice()+", (select supplier_id from suppliers where supplier_name ='"+supplier.getName() +
-//                    "' and phone= '" +supplier.getPhone()+"'))";
-//            Statement stmt = con.createStatement();
-//            stmt.executeUpdate(sql);
 
 
         }catch (SQLException e){
             System.out.println(" bruh... error while adding products  !! : "+ e);
-        }finally{
-            db.closeCon();
-
         }
     }
 
@@ -82,11 +81,11 @@ public class ProductDAO{
         System.out.println();
         rs.close();
         stmt.close();
-        db.closeCon();
+        con.close();
 
     }
 
-    public void searchProduct() throws SQLException {
+    public void searchProduct(int cusId) throws SQLException {
         Db db = new Db();
         Connection con =db.getConnection();
         Scanner scan = new Scanner(System.in);
@@ -99,7 +98,8 @@ public class ProductDAO{
             stmt.setString(1, "%" + s + "%");
             ResultSet rs = stmt.executeQuery();
             if (!rs.isBeforeFirst()) {
-
+                System.out.println("Product not found !!!");
+                continue;
             }
 
 
@@ -108,8 +108,9 @@ public class ProductDAO{
             System.out.printf("%-5s %-20s %-10s %-10s %-15s%n",
                     "ID", "Product Name", "Price", "Stock", "Supplier Name");
             System.out.println("------------------------------------------------------------------");
-
+            Set<Integer> ids = new HashSet<>();
             while (rs.next()) {
+                ids.add(rs.getInt("product_id"));
                 System.out.printf("%-5d %-20s %-10d %-10d %-15s%n",
                         rs.getInt("product_id"),
                         rs.getString("product_name"),
@@ -117,10 +118,76 @@ public class ProductDAO{
                         rs.getInt("stock"),
                         rs.getString("supplier_name"));
             }
-            rs.close();
-            stmt.close();
-            db.closeCon();
-            break;
+            int id;
+            while(true) {
+                try {
+                    System.out.println("Enter product Id : ");
+                    id = scan.nextInt();
+                    scan.nextLine();
+                    if(!ids.contains(id)){
+                        System.out.println("Invalid ID!, please choose from listed products...");
+                        continue;
+                    }
+                    break;
+                }catch (InputMismatchException e){
+                    System.out.println("Invalid input ,please enter a number...!");
+                    scan.nextLine();
+                }
+            }
+            int quantity;
+            while(true) {
+                try {
+                    System.out.print("Enter quantity : ");
+                     quantity = scan.nextInt();
+                    scan.nextLine();
+                    break;
+                }catch (InputMismatchException e){
+                    System.out.println("Invalid input ,please enter a number...!");
+                    scan.nextLine();
+                }
+            }
+            String stockQuery = "SELECT stock FROM products WHERE product_id = ?";
+            PreparedStatement stockStmt = con.prepareStatement(stockQuery);
+            stockStmt.setInt(1, id);
+            ResultSet stockRs = stockStmt.executeQuery();
+            if(stockRs.next()){
+                int stock = stockRs.getInt("stock");
+                if(stock > quantity) {
+                    System.out.println("do u wanna continue? yes/no");
+                    if (scan.nextLine().equalsIgnoreCase("yes")) {
+                        Billing(con, id, quantity,cusId);
+                        break;
+                    }
+                }  else{
+                    System.out.println("Stock not available");
+                    break;
+                }
+            }
         }
     }
+
+    private void Billing(Connection con,int id , int quantity,int cusId) throws SQLException {
+        String customerName ;
+        String sql = "update products " +
+                "set stock = stock- ?" +
+                " where product_id = ?";
+        PreparedStatement stmt = con.prepareStatement(sql);
+        stmt.setInt(1,quantity);
+        stmt.setInt(2,id);
+        stmt.executeUpdate();
+        stmt.close();
+
+        stmt=con.prepareStatement("select product_name ,selling_price from products where product_id = ?");
+        stmt.setInt(1,id);
+        ResultSet rs = stmt.executeQuery();
+        rs.next();
+        int amount =(quantity * rs.getInt("Selling_price"));
+        customerName = new CustomerDAO().getCustomer(cusId);
+        Orders order = new Orders(amount,rs.getString("product_name"),customerName);
+        OrdersDAO ordersDAO = new OrdersDAO(order);
+        System.out.println("Purchase Completed ,"+customerName+"bought   "+quantity+" "+rs.getString("Product_name") );
+        System.out.println("total amount : "+ amount);
+
+    }
+
 }

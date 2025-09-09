@@ -2,7 +2,6 @@ package model;
 
 
 public class Supplier {
-    private int supplier_id;
     private String name ;
     private String phone;
 
